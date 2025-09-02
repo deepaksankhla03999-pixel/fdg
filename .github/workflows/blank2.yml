@@ -1,0 +1,79 @@
+name: Continuous Persistent VPS
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  vps-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # Just under 6 hours
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set hostname to deepak
+        run: sudo hostnamectl set-hostname deepak
+
+      - name: Download previous backup (if any)
+        uses: actions/download-artifact@v4
+        with:
+          name: vps-backup
+          path: ./backup
+        continue-on-error: true
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update
+          sudo apt install -y tmate curl unzip sudo net-tools neofetch
+
+      - name: Restore backup files
+        run: |
+          if [ -f ./backup/backup.zip ]; then
+            unzip -o ./backup/backup.zip -d /
+            echo "Backup restored."
+          else
+            echo "No backup found, starting fresh."
+          fi
+
+      - name: Create user Deepak with sudo
+        run: |
+          if ! id -u Deepak >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash Deepak
+            echo "Deepak:Deepak" | sudo chpasswd
+            sudo usermod -aG sudo Deepak
+            echo "Deepak ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/Deepak
+            chown -R Deepak:Deepak /home/Deepak
+          fi
+
+      - name: Start tmate session for SSH access
+        uses: mxschmitt/action-tmate@v3
+
+      - name: Show connection info
+        run: |
+          echo "👤 SSH Access:"
+          echo "User: Deepak"
+          echo "Password: Deepak"
+          echo ""
+          echo "🔗 tmate SSH session:"
+          cat $HOME/.tmate.sock/ssh || echo "Session not ready yet"
+
+      - name: Keep session alive for ~6 hours
+        run: sleep 21600  # 6 hours
+
+      - name: Backup home directory and configs
+        if: always()
+        run: |
+          mkdir -p ./backup-home
+          cp -r /home/Deepak ./backup-home/ || true
+          sudo chown -R $USER:$USER ./backup-home
+          zip -r backup.zip ./backup-home
+          rm -rf ./backup-home
+
+      - name: Upload VPS backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-backup
+          path: backup.zip
