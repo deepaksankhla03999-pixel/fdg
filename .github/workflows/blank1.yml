@@ -1,0 +1,51 @@
+name: Continuous Persistent VPS
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"   # Every 6 hours
+
+jobs:
+  vps-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install SSH server
+        run: |
+          sudo apt update
+          sudo apt install -y openssh-server net-tools
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
+
+      - name: Create user Deepak with sudo
+        run: |
+          if ! id -u Deepak >/dev/null 2>&1; then
+            sudo useradd -m -s /bin/bash Deepak
+            echo "Deepak:Deepak" | sudo chpasswd
+            sudo usermod -aG sudo Deepak
+            echo "Deepak ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/Deepak
+          fi
+
+      - name: Generate SSH keys for GitHub runner
+        run: |
+          ssh-keygen -t rsa -b 4096 -f $HOME/runner_key -N ""
+          echo "🔑 Public key for login:"
+          cat $HOME/runner_key.pub
+          sudo mkdir -p /home/Deepak/.ssh
+          sudo cp $HOME/runner_key.pub /home/Deepak/.ssh/authorized_keys
+          sudo chown -R Deepak:Deepak /home/Deepak/.ssh
+          sudo chmod 600 /home/Deepak/.ssh/authorized_keys
+
+      - name: Start multiple SSH ports every 5s
+        run: |
+          echo "🟢 Starting SSH loop..."
+          while true; do
+            PORT=$((20000 + RANDOM % 20000))   # random port 20000-39999
+            echo "🔑 New SSH port: $PORT"
+            sudo ssh -o StrictHostKeyChecking=no -N -R $PORT:localhost:22 serveo.net &
+            sleep 5
+          done
