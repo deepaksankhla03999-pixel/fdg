@@ -1,0 +1,23 @@
+name: 2025 Infinite SSH Keys
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # Max GitHub runner time
+    steps:
+      - name: Install tmate
+        run: sudo apt update && sudo apt install -y tmate
+
+      - name: Generate endless SSH sessions
+        run: |
+          while true; do
+            echo "---- New SSH Session ----"
+            tmate -S /tmp/tmate.sock new-session -d
+            tmate -S /tmp/tmate.sock wait tmate-ready
+            tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
+            sleep 5
+            pkill -f "tmate"
+          done
