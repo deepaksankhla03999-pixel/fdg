@@ -1,0 +1,25 @@
+name: Multi-SSH-Sessions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # Keep alive as long as possible
+    steps:
+      - name: Install tmate
+        run: sudo apt update && sudo apt install -y tmate
+
+      - name: Generate multiple SSH sessions
+        run: |
+          i=1
+          while true; do
+            echo "---- New SSH Session #$i ----"
+            sock="/tmp/tmate_$i.sock"
+            tmate -S $sock new-session -d
+            tmate -S $sock wait tmate-ready
+            tmate -S $sock display -p '#{tmate_ssh}'
+            i=$((i+1))
+            sleep 5
+          done
